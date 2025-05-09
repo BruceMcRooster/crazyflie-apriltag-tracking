@@ -5,11 +5,12 @@ to track and move towards AprilTag markers using OpenCV.
 Originally, this project was supposed to be done on actual hardware, 
 but after a series of technical issues, it was done in simulator instead ☹️.
 
+## Quickstart
 If you're just interested in running the project, see these Quickstart details. 
 Otherwise, the rest of this README is dedicated to walking through the process of creating the project.
 <details>
 
-<summary><strong>Quickstart</strong></summary>
+<summary>Quickstart</summary>
 
 These instructions will get you up and running with this project quickly so you can see it working.
 Read the rest of the README if you want to understand how it works.
