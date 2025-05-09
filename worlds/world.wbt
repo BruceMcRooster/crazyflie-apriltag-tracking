@@ -49,4 +49,6 @@ Robot {
     }
   ]
   name "AprilTag"
+  controller "apriltag_controller"
+  supervisor TRUE
 }
