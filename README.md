@@ -210,8 +210,11 @@ I renamed mine to be something more typeable ([`apriltag1.png`](worlds/apriltag1
 
 ### Insert The AprilTag
 Now, we need to get it into our world.
-Open up Webots. Make sure you reset and pause your simulation using the controls at the top of the window. 
-This takes several steps, so be patient. 
+Open up Webots. Make sure you pause and reset your simulation using the controls at the top of the window.
+This takes several steps, so be patient, and go slowly.
+> [!WARNING]
+> Make sure that your drone is not currently flying and the time marker says 0:00:00:000.
+> Otherwise, you won't be able to save your changes without overwriting the initial drone position. 
 
 <details><summary>If you aren't patient, you can copy the final output here.</summary>
 
