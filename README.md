@@ -185,3 +185,102 @@ Sorry Chris, I'm not figuring out how to make this one work just for you.
 
 Give yourself a pat on the back. You've just finished all the setup you'll need.
 
+## Create The AprilTag
+AprilTags are an amazing little creation by the APRIL Robotics Laboratory that are like special QR codes for robots.
+They're super easy and fast to track with a camera, even in 3D. If you're interested, you can learn more [here](https://april.eecs.umich.edu/software/apriltag).
+I also find [this](https://docs.wpilib.org/en/stable/docs/software/vision-processing/apriltag/apriltag-intro.html) 
+page in the FIRST Robotics WPILib Docs to be quite informative.
+This will be what our drone tracks when flying.
+
+![AprilTags on several small robots.](https://april.eecs.umich.edu/media/apriltag/apriltagrobots_overlay.jpg)
+
+For the drone to track an AprilTag, it needs an AprilTag to track.
+
+### Get An AprilTag
+Go to [this](https://github.com/AprilRobotics/apriltag-imgs/tree/master/tag16h5) folder and choose an AprilTag.
+The ID of each AprilTag is given in the last part of the file name (`tag16_05_[tag_id].png`).
+You can choose any of these; just remember which tag you got.
+
+When you click on the file, it will show a tiny preview. This is the actual size of the image, 
+since they are scaled down to be just one pixel per square, resulting in an 8 pixel by 8 pixel image.
+Download the one you chose using the download button.
+
+Move this image to your `worlds` folder. 
+I renamed mine to be something more typeable ([`apriltag1.png`](worlds/apriltag1.png)), but you don't have to.
+
+### Insert The AprilTag
+Now, we need to get it into our world.
+Open up Webots. Make sure you reset and pause your simulation using the controls at the top of the window. 
+This takes several steps, so be patient. 
+
+<details><summary>If you aren't patient, you can copy the final output here.</summary>
+
+Copy this into the bottom of your `world.wbt` file
+
+```
+Robot {
+  translation 0.5 0 1
+  children [
+    Solid {
+      rotation 0 1 0 -1.5708
+      children [
+        Shape {
+          appearance Appearance {
+            texture ImageTexture {
+              url [
+                "[apriltag name].png"
+              ]
+              filtering 0
+            }
+          }
+          geometry Plane {
+            size 0.133333 0.133333
+          }
+        }
+      ]
+    }
+  ]
+  name "AprilTag"
+}
+```
+Replace `[apriltag name]` with the name of your AprilTag image.
+
+You can then reload your simulator (arrows in a circle icon) to see these changes.
+
+---
+</details>
+
+1. Click on the plus button on the side menu showing all the world objects.
+   Select "Base nodes > Robot" and hit Add.
+2. Find that Robot in the sidebar. Expand its properties and scroll down to its "name" property.
+   Change that to "AprilTag."
+3. Find the "children" property on the Robot. Double-click on it to add a child.
+   Find a "Solid" under "Base nodes" and add that.
+4. Double-click the "children" property to add a "Shape" node (also under "Base nodes"; everything we're adding is) as a child of the Solid.
+5. Add a "Plane" to the Shape node's "geometry" property.
+   You should now see something gray flickering in the floor of the world.
+6. Add an "Appearance" node to the Shape's "appearance" property.
+7. Add an "ImageTexture" node to the Appearance's "texture" property.
+8. Double-click on the ImageTexture's "url" property. 
+   In the field that appears, type the name of the AprilTag you saved, including the .png extension.
+   You should now see a blurry black and white image flickering in the floor.
+9. Find the "rotation" property on the Shape node.
+   Set the "y" property to 1 and the "x" and "z" properties to 0.
+   Then set the "angle" property to -1.5708. 
+   You should now see a blurry image of your AprilTag standing upright.
+   If you right-click on the Solid and select "Move Viewpoint to Object", you can get a better view.
+10. To solve the blurring problem, go back to the Image node and set its "filtering" property to 0.
+    This will turn off smoothing of the PNG image, and you should now see your AprilTag in crisp detail.
+11. Set the Plane's "size" property to x=0.133333 and y=0.133333. 
+    This will make the inner part of the AprilTag 10 cm by 10 cm.
+12. Go up to the Robot at the root named "AprilTag" and set it's "translation" property to x=0.5, y=0.0, z=1.0.
+    This will position it about half a meter in front of the drone once it launches.
+
+> [!WARNING]
+> Make sure to save your changes using the save menu before doing anything else in the simulator.
+
+Then, you can hit play and launch your drone.
+It should come to rest with the AprilTag roughly centered in its camera window.
+
+![The AprilTag centered in the drone's camera view](Pictures/apriltag_in_drone_view.jpg)
+
