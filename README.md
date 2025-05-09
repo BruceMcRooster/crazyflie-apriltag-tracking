@@ -287,3 +287,28 @@ It should come to rest with the AprilTag roughly centered in its camera window.
 
 ![The AprilTag centered in the drone's camera view](Pictures/apriltag_in_drone_view.jpg)
 
+### Code The AprilTag
+To make testing more interesting, this AprilTag will be able to move using keyboard controls 
+so you can test the drone tracking it.
+
+First, create a new folder called `apriltag_controller` in your `controllers` folder. 
+This will store the code to implement these controls.
+
+Next, create a new file in that folder called `apriltag_controller.py`.
+As far as I can tell, controllers need to have the same name as their enclosing folder.
+
+You can then copy the code in [this file](controllers/apriltag_controller/apriltag_controller.py).
+It's heavily commented if you want to understand how it works, but generally not relevant to making this all work.
+
+Finally, we need to wire up this controller with the AprilTag. Go back to Webots.
+*Make sure* you've reset your simulation so you can make changes.
+Then change two things in your "AprilTag" Robot.
+1. Set the "controller" property to "apriltag_controller." The option should show up if you hit the Select button.
+2. Set "supervisor" to TRUE. This allows the controller code to directly manipulate the simulations,
+   which it needs to do to work.
+
+If you save your changes and run the simulation, 
+you should now be able to control the position of the AprilTag with similar controls to those of the Crazyflie.
+Your Crazyflie may simultaneously be reacting to the keyboard inputs, because it's still set to use those controls.
+Let's make it fly itself instead!
+
