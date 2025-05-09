@@ -134,6 +134,9 @@ You can probably find the one you need.
 Whenever you want to work on this project in the terminal, you'll want to run that `source` command again.
 That will make sure all the things you install are available to your code.
 
+[^1]: You can actually put your virtual environment anywhere and name it anything, 
+but I like to keep my virtual environment with my project.
+
 #### Install NumPy
 The library we need to get the drone flying is called NumPy. 
 You can install by running this command (with your virtual environment activated, if you have one).
@@ -182,5 +185,3 @@ Sorry Chris, I'm not figuring out how to make this one work just for you.
 
 Give yourself a pat on the back. You've just finished all the setup you'll need.
 
-[^1]: You can actually put your virtual environment anywhere and name it anything, 
-but I like to keep my virtual environment with my project.
