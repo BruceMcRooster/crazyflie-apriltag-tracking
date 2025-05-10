@@ -23,7 +23,6 @@ from typing import cast
 
 from controller import Robot
 from controller import Motor, InertialUnit, GPS, Gyro, Camera, DistanceSensor
-from controller import Keyboard
 
 from math import cos, sin
 
@@ -68,10 +67,6 @@ if __name__ == '__main__':
     range_right = cast(DistanceSensor, robot.getDevice("range_right"))
     range_right.enable(timestep)
 
-    # Get keyboard
-    keyboard = Keyboard()
-    keyboard.enable(timestep)
-
     # Initialize variables
 
     past_x_global = 0
@@ -86,15 +81,6 @@ if __name__ == '__main__':
 
     height_desired = FLYING_ATTITUDE
 
-    print("\n")
-
-    print("====== Controls =======\n\n")
-
-    print(" The Crazyflie can be controlled from your keyboard!\n")
-    print(" All controllable movement is in body coordinates\n")
-    print("- Use the up, back, right and left button to move in the horizontal plane\n")
-    print("- Use Q and E to rotate around yaw\n ")
-    print("- Use W and S to go up and down\n ")
 
     # Main loop:
     while robot.step(timestep) != -1:
@@ -131,26 +117,6 @@ if __name__ == '__main__':
         sideways_desired = 0
         yaw_desired = 0
         height_diff_desired = 0
-
-        key = keyboard.getKey()
-        while key > 0:
-            if key == Keyboard.UP:
-                forward_desired += 0.5
-            elif key == Keyboard.DOWN:
-                forward_desired -= 0.5
-            elif key == Keyboard.RIGHT:
-                sideways_desired -= 0.5
-            elif key == Keyboard.LEFT:
-                sideways_desired += 0.5
-            elif key == ord('Q'):
-                yaw_desired = + 1
-            elif key == ord('E'):
-                yaw_desired = - 1
-            elif key == ord('W'):
-                height_diff_desired = 0.1
-            elif key == ord('S'):
-                height_diff_desired = - 0.1
-            key = keyboard.getKey()
 
         height_desired += height_diff_desired * dt
 
