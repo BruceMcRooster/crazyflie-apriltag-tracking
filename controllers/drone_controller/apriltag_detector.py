@@ -14,6 +14,23 @@ class AprilTagDetector:
         self.detector = aruco.ArucoDetector(apriltag_dict, parameters)
         self.camera = camera
 
+        # Camera, at least on this simulator Crazyflie model, does not have a focal length set.
+        # Thus, camera.getFocalLength() would return 0 and mess up calculations.
+        # Instead, we compute these parameters using the width/height and FOV.
+        # This does assume the FOV is the same for the width and height (the camera takes a square image).
+        fx = (self.camera.width / 2) / (self.camera.fov / 2)
+        fy = (self.camera.height / 2) / (self.camera.fov / 2)
+
+        # Center of focus is the center of the camera view
+        cx = self.camera.width / 2
+        cy = self.camera.height / 2
+
+        self.camera_matrix = np.array([[fx, 0, cx],
+                                  [0, fy, cy],
+                                  [0, 0, 1]], dtype=np.float32)
+
+        self.marker_length = 0.1
+
 
     def _get_camera_image(self) -> np.ndarray:
         """
@@ -52,33 +69,57 @@ class AprilTagDetector:
         in the coordinate space of the camera. The rotation vector is a Rodrigues rotation vector.
         """
 
-        # Camera, at least on this simulator Crazyflie model, does not have a focal length set.
-        # Thus, camera.getFocalLength() would return 0 and mess up calculations.
-        # Instead, we compute these parameters using the width/height and FOV.
-        # This does assume the FOV is the same for the width and height (the camera takes a square image).
-        fx = (self.camera.width / 2) / (self.camera.fov / 2)
-        fy = (self.camera.height / 2) / (self.camera.fov / 2)
-
-        # Center of focus is the center of the camera view
-        cx = self.camera.width / 2
-        cy = self.camera.height / 2
-
-        camera_matrix = np.array([[fx, 0, cx],
-                                  [0, fy, cy],
-                                  [0, 0, 1]], dtype=np.float32)
-
-        marker_length = 0.1
-        obj_points = np.array([[-marker_length / 2.0, marker_length / 2.0, 0],
-                               [marker_length / 2.0, marker_length / 2.0, 0],
-                               [marker_length / 2.0, -marker_length / 2.0, 0],
-                               [-marker_length / 2.0, -marker_length / 2.0, 0]],
+        obj_points = np.array([[-self.marker_length / 2.0, self.marker_length / 2.0, 0],
+                               [self.marker_length / 2.0, self.marker_length / 2.0, 0],
+                               [self.marker_length / 2.0, -self.marker_length / 2.0, 0],
+                               [-self.marker_length / 2.0, -self.marker_length / 2.0, 0]],
                               dtype=np.float32)
 
         _, rvec, tvec = cv2.solvePnP(
             objectPoints=obj_points,
             imagePoints=corners,
-            cameraMatrix=camera_matrix,
+            cameraMatrix=self.camera_matrix,
             distCoeffs=None
         )
+
+        return rvec, tvec
+
+
+    def get_min_tag_offset(self,
+                           show_detection_window: bool = False) -> Tuple[np.ndarray, np.ndarray] | None:
+        """
+        Calculates the position and rotation of any detected AprilTag in the image in the frame of the camera.
+        :param show_detection_window: Show external Python window with the detected AprilTag and pose annotations.
+        This will almost certainly slow down the simulation, so it is intended more for debug purposes.
+        :return: If an AprilTag is detected, return the position of the detected AprilTag in the frame of the camera,
+        where the first part of the tuple is the transform
+        in XYZ format (Z is forward, Y is upward, different Webots coordinate system)
+        and the second part of the tuple is Rodrigues rotation vector.
+        If no AprilTag is detected, returns None.
+        """
+
+        image = self._get_camera_image()
+        result = self._get_min_id_apriltag(image)
+        if result is None: # No detections
+            return None
+
+        tag_id = result[0]
+        corners = result[1]
+
+        rvec, tvec = self._get_apriltag_orientation(image, corners)
+
+        if show_detection_window:
+            aruco.drawDetectedMarkers(image, [corners], np.array([tag_id]))
+            cv2.drawFrameAxes(
+                image=image,
+                cameraMatrix=self.camera_matrix,
+                distCoeffs=None,
+                rvec=rvec,
+                tvec=tvec,
+                length=self.marker_length * 1.5,
+                thickness=2,
+            )
+            cv2.imshow('AprilTag Detection', image)
+            cv2.waitKey(100)
 
         return rvec, tvec

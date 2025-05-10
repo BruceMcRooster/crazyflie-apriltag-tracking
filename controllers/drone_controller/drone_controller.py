@@ -27,6 +27,7 @@ from controller import Motor, InertialUnit, GPS, Gyro, Camera, DistanceSensor
 from math import cos, sin
 
 from pid_controller import pid_velocity_fixed_height_controller
+from apriltag_detector import AprilTagDetector
 
 FLYING_ATTITUDE = 1
 
@@ -79,6 +80,8 @@ if __name__ == '__main__':
     PID_update_last_time = robot.getTime()
     sensor_read_last_time = robot.getTime()
 
+    detector = AprilTagDetector(camera)
+
     height_desired = FLYING_ATTITUDE
 
 
@@ -120,7 +123,9 @@ if __name__ == '__main__':
 
         height_desired += height_diff_desired * dt
 
-        camera_data = camera.getImage()
+        rvec, tvec = detector.get_min_tag_offset(
+                                    # True # Uncomment to show debug window of AprilTag detection
+                                    )
 
         # get range in meters
         range_front_value = range_front.getValue() / 1000
