@@ -42,7 +42,7 @@ class AprilTagDetector:
         return cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
 
 
-    def _get_min_id_apriltag(self, image: np.ndarray) -> Tuple[int, np.ndarray] | None:
+    def _get_min_id_apriltag(self, image: np.ndarray) -> Tuple[int, np.ndarray] | Tuple[None, None]:
         """
         Gets the id and corners of the lowest-ID AprilTag in the image.
         :param image: The image to process for AprilTags.
@@ -51,7 +51,7 @@ class AprilTagDetector:
         corners, ids, rejected_image_points = self.detector.detectMarkers(image)
 
         if ids is None or len(ids) == 0:
-            return None
+            return None, None
 
         min_index = int(np.argmin(ids))
 
@@ -85,7 +85,7 @@ class AprilTagDetector:
 
 
     def get_min_tag_offset(self,
-                           show_detection_window: bool = False) -> Tuple[np.ndarray, np.ndarray] | None:
+                           show_detection_window: bool = False) -> Tuple[np.ndarray, np.ndarray] | Tuple[None, None]:
         """
         Calculates the position and rotation of any detected AprilTag in the image in the frame of the camera.
         :param show_detection_window: Show external Python window with the detected AprilTag and pose annotations.
@@ -98,12 +98,9 @@ class AprilTagDetector:
         """
 
         image = self._get_camera_image()
-        result = self._get_min_id_apriltag(image)
-        if result is None: # No detections
-            return None
-
-        tag_id = result[0]
-        corners = result[1]
+        tag_id, corners = self._get_min_id_apriltag(image)
+        if tag_id is None or corners is None: # No detections
+            return None, None
 
         rvec, tvec = self._get_apriltag_orientation(corners)
 
