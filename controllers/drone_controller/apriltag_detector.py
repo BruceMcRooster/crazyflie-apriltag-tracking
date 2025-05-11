@@ -35,7 +35,6 @@ class AprilTagDetector:
     def _get_camera_image(self) -> np.ndarray:
         """
         Gets the camera image representation in BGR format.
-        :arg cam: The Camera to get the image from.
         :returns: The image from the camera, in BGR format.
         """
         img = np.frombuffer(self.camera.getImage(), dtype=np.uint8).reshape((self.camera.height, self.camera.width, 4))
