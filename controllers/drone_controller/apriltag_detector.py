@@ -60,10 +60,9 @@ class AprilTagDetector:
         return int(ids[min_index]), min_corners
 
 
-    def _get_apriltag_orientation(self, image: np.ndarray, corners: np.ndarray) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]] | None:
+    def _get_apriltag_orientation(self, corners: np.ndarray) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]] | None:
         """
         Gets the location and rotation of the given AprilTag in the image, relative to the camera.
-        :param image: The image that contains the AprilTag.
         :param corners: The corners of the AprilTag, relative to the image frame.
         :return: If no AprilTag detected, returns None. Otherwise, returns the position and rotation of the lowest-ID AprilTag
         in the coordinate space of the camera. The rotation vector is a Rodrigues rotation vector.
@@ -106,7 +105,7 @@ class AprilTagDetector:
         tag_id = result[0]
         corners = result[1]
 
-        rvec, tvec = self._get_apriltag_orientation(image, corners)
+        rvec, tvec = self._get_apriltag_orientation(corners)
 
         if show_detection_window:
             aruco.drawDetectedMarkers(image, [corners], np.array([tag_id]))
