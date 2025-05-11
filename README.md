@@ -5,6 +5,12 @@ to track and move towards AprilTag markers using OpenCV.
 Originally, this project was supposed to be done on actual hardware, 
 but after a series of technical issues, it was done in simulator instead ☹️.
 
+> [!NOTE]
+> ### 🚧 UNDER CONSTRUCTION 🚧
+> Actually following the AprilTag is currently not working. 
+> The drone can detect it and its orientation, but does not currently move accordingly.
+
+
 ## Quickstart
 If you're just interested in running the project, see these Quickstart details. 
 Otherwise, the rest of this README is dedicated to walking through the process of creating the project.
@@ -784,3 +790,7 @@ Now that we can track the AprilTag with the camera,
 the last part of the puzzle is to make the drone autonomously move to keep itself a certain distance from the AprilTag.
 That's what we'll do next.
 
+## Follow The AprilTag
+> [!WARNING]
+> ### 🚧 UNDER CONSTRUCTION 🚧
+> This section is currently incomplete. It will be updated once the tracking part of this project is completed.
