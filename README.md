@@ -312,3 +312,475 @@ you should now be able to control the position of the AprilTag with similar cont
 Your Crazyflie may simultaneously be reacting to the keyboard inputs, because it's still set to use those controls.
 Let's make it fly itself instead!
 
+## Track The AprilTag
+The first step to tracking the AprilTag is being able to detect it, 
+including finding its distance and rotation relative to the drone.
+
+### Install OpenCV
+First, we'll need to import another library that will help us with image processing.
+OpenCV is the open-source industry standard for image processing in robotics.
+
+Reactivate your virtual environment if you have one. 
+Then run
+```shell
+pip install opencv_python
+```
+
+### Create An AprilTagDetector Class
+To keep all the code we'll need for detecting the AprilTag separate from the drone flying code,
+we'll create a new class. Create a new file in `controllers/drone_controller` called `apriltag_detector.py`.
+Then paste in the following code.
+
+```python
+from controller import Camera
+
+class AprilTagDetector:
+    def __init__(self, camera: Camera):
+        self.camera = camera
+```
+
+This will let us initialize the AprilTag detector with a camera it can read images from.
+
+### Read Images From The Camera
+Next, we'll need a way to actually read those images.
+We'll put all these pieces together at the end in one function,
+so we'll separate this logic into a private function on the class.
+
+First, we'll need to import NumPy and OpenCV.
+```python
+import cv2
+import numpy as np
+
+from controller import Camera
+
+...
+```
+Next, we'll create a class function `_get_camera_image`
+```python
+def _get_camera_image(self):
+```
+In that function, we'll need to do two things. 
+First, we need to get the image from the camera buffer.
+```python
+img = np.frombuffer(self.camera.getImage(), dtype=np.uint8).reshape((self.camera.height, self.camera.width, 4))
+```
+This code read the camera image buffer into a NumPy array, then converts it to a matrix that is the size of the camera,
+which is the structure of images that OpenCV works with.
+
+Next, since the data output from the camera is in the BGRA format, but OpenCV works in the BGR format,
+we'll convert the structure of the data in the image matrix.
+```python
+img_converted = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+```
+Finally, we can return that converted image. The full function will look like this.
+
+```python
+def _get_camera_image(self):
+    img = np.frombuffer(self.camera.getImage(), dtype=np.uint8).reshape((self.camera.height, self.camera.width, 4))
+    img_converted = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+    return img_converted
+```
+
+<details>
+<summary>Current Full File</summary>
+
+```python
+import cv2
+import numpy as np
+
+from controller import Camera
+
+class AprilTagDetector:
+    def __init__(self, camera: Camera):
+        self.camera = camera
+
+    def _get_camera_image(self):
+        img = np.frombuffer(self.camera.getImage(), dtype=np.uint8).reshape((self.camera.height, self.camera.width, 4))
+        img_converted = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+        return img_converted
+```
+</details>
+
+### Find AprilTag In Image
+To detect an AprilTag, we'll need to configure OpenCV's ArUco marker capabilities.
+
+First, we'll need on more import
+```python
+from cv2 import aruco as aruco
+```
+We'll set up the detector in our `__init__` method to avoid recreating it several times a second.
+We'll get the dictionary that contains the information OpenCV needs to recognize our AprilTag family.
+```python
+apriltag_dict = aruco.getPredefinedDictionary(aruco.DICT_APRILTAG_16h5)
+```
+Next, we'll configure the parameters for the detector and create the detector. 
+We don't need anything beyond the default configuration.
+We'll make the detector a new class property to let us access it later on.
+```python
+parameters = aruco.DetectorParameters()
+self.detector = aruco.ArucoDetector(apriltag_dict, parameters)
+```
+Next, we'll create a function to detect an AprilTag in an image. 
+Since we can only ever detect one to follow, we'll choose the one with the lowest ID that we see.
+```python
+def _get_min_id_apriltag(self, image):
+```
+We can use the detector to detect AprilTags in the image.
+```python
+corners, ids, rejected_image_points = self.detector.detectMarkers(image)
+```
+This will get us the corner points (relative to the image) and IDs of the AprilTags that were detected.
+Next, we'll get the lowest ID and return the ID and corners.
+```python
+if ids is None or len(ids) == 0: # We didn't detect any markers
+    return None, None
+
+min_index = int(np.argmin(ids)) # Gets the index of the smallest ID
+
+return int(ids[min_index]), corners[min_index]
+```
+
+<details>
+<summary>Current Full File</summary>
+
+```python
+import cv2
+from cv2 import aruco as aruco
+import numpy as np
+
+from controller import Camera
+
+class AprilTagDetector:
+    def __init__(self, camera: Camera):
+        self.camera = camera
+        
+        apriltag_dict = aruco.getPredefinedDictionary(aruco.DICT_APRILTAG_16h5)
+        parameters = aruco.DetectorParameters()
+        self.detector = aruco.ArucoDetector(apriltag_dict, parameters)
+        
+
+    def _get_camera_image(self):
+        img = np.frombuffer(self.camera.getImage(), dtype=np.uint8).reshape((self.camera.height, self.camera.width, 4))
+        img_converted = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+        return img_converted
+
+    def _get_min_id_apriltag(self, image):
+        corners, ids, rejected_image_points = self.detector.detectMarkers(image)
+        
+        if ids is None or len(ids) == 0: # We didn't detect any markers
+            return None, None
+
+        min_index = int(np.argmin(ids)) # Gets the index of the smallest ID
+        
+        return int(ids[min_index]), corners[min_index]
+```
+</details>
+
+### Find Orientation Of AprilTag
+Next, we'll use OpenCV again to determine the orientation of the AprilTag we detected.
+We'll need to put a little more configuration in our `__init__` method 
+to give the orientation detector all the information it needs.
+
+First, the detector needs the focal length of the camera.
+Unfortunately, the built-in `Camera.getFocalLength()` will return 0 for our simulator camera,
+since it doesn't have a focal length configured.
+We can get around this by computing the focal length a different way 
+using the field of view (FOV) and the dimensions of the camera image.
+We'll need to compute the focal length in both the x and y axes. 
+These will end up being equal because the camera frame is square.
+```python
+fx = (self.camera.width / 2) / (self.camera.fov / 2)
+fy = fx
+```
+You can learn more about FOV and focal length in Webots [here](https://www.cyberbotics.com/doc/reference/camera#field-summary)
+
+Next, we'll need the location, in pixels, of the center of focus in the image.
+This is just the center of the image, so we can compute it easily.
+```python
+cx = self.camera.width / 2
+cy = self.camera.height / 2
+```
+Finally, we'll put these together into a matrix which the detector can interpret.
+We'll make it a class property to access it later.
+```python
+self.camera_matrix = np.array([[fx, 0, cx],
+                               [0, fy, cy],
+                               [0, 0, 1]], dtype=np.float32)
+```
+We'll also create a class property to store the length of the sides of the markers.
+Remember we set the size of our marker so that the width of the black part was 10 centimeters.
+```python
+self.marker_length = 0.1
+```
+
+Now that we've configured this in our initializer, we can use it in a new function 
+that will take the corners of a detected AprilTag and determine its orientation.
+```python
+def _get_apriltag_orientation(self, corners):
+```
+We'll create a matrix that tells OpenCV how the corners of the marker are situated relative to its center.
+```python
+obj_points = np.array([[-self.marker_length / 2.0, self.marker_length / 2.0, 0],
+                       [self.marker_length / 2.0, self.marker_length / 2.0, 0],
+                       [self.marker_length / 2.0, -self.marker_length / 2.0, 0],
+                       [-self.marker_length / 2.0, -self.marker_length / 2.0, 0]],
+                      dtype=np.float32)
+```
+Then, we can get the solved rotation and translation vectors and return them.
+```python
+_, rvec, tvec = cv2.solvePnP(
+    objectPoints=obj_points,
+    imagePoints=corners,
+    cameraMatrix=self.camera_matrix,
+    distCoeffs=None # We have no distortion in the camera
+)
+
+return rvec, tvec
+```
+
+<details>
+<summary>Current Full File</summary>
+
+```python
+import cv2
+from cv2 import aruco as aruco
+import numpy as np
+
+from controller import Camera
+
+class AprilTagDetector:
+    def __init__(self, camera: Camera):
+        self.camera = camera
+        
+        apriltag_dict = aruco.getPredefinedDictionary(aruco.DICT_APRILTAG_16h5)
+        parameters = aruco.DetectorParameters()
+        self.detector = aruco.ArucoDetector(apriltag_dict, parameters)
+        
+        fx = (self.camera.width / 2) / (self.camera.fov / 2)
+        fy = fx
+
+        cx = self.camera.width / 2
+        cy = self.camera.height / 2
+
+        self.camera_matrix = np.array([[fx, 0, cx],
+                                  [0, fy, cy],
+                                  [0, 0, 1]], dtype=np.float32)
+
+        self.marker_length = 0.1
+
+    def _get_camera_image(self):
+        img = np.frombuffer(self.camera.getImage(), dtype=np.uint8).reshape((self.camera.height, self.camera.width, 4))
+        img_converted = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+        return img_converted
+
+    def _get_min_id_apriltag(self, image):
+        corners, ids, rejected_image_points = self.detector.detectMarkers(image)
+        
+        if ids is None or len(ids) == 0: # We didn't detect any markers
+            return None, None
+
+        min_index = int(np.argmin(ids)) # Gets the index of the smallest ID
+        
+        return int(ids[min_index]), corners[min_index]
+
+    def _get_apriltag_orientation(self, corners):
+
+        obj_points = np.array([[-self.marker_length / 2.0, self.marker_length / 2.0, 0],
+                               [self.marker_length / 2.0, self.marker_length / 2.0, 0],
+                               [self.marker_length / 2.0, -self.marker_length / 2.0, 0],
+                               [-self.marker_length / 2.0, -self.marker_length / 2.0, 0]],
+                              dtype=np.float32)
+
+        _, rvec, tvec = cv2.solvePnP(
+            objectPoints=obj_points,
+            imagePoints=corners,
+            cameraMatrix=self.camera_matrix,
+            distCoeffs=None # We have no distortion in the camera
+        )
+
+        return rvec, tvec
+```
+</details>
+
+### Put It Together
+Finally, we can create a final function to bring all these functions together.
+This will be what we call in our drone.
+```python
+def get_min_tag_offset(self):
+    image = self._get_camera_image()
+    
+    tag_id, corners = self._get_min_id_apriltag(image)
+    if tag_id is None or corners is None: # No detections
+        return None, None
+
+    rvec, tvec = self._get_apriltag_orientation(corners)
+
+    return rvec, tvec
+```
+This is everything we'll need.
+But for debugging purposes, let's add an image readout of the detection.
+Fortunately, OpenCV makes this really easy.
+
+We'll add a new argument to the function to indicate whether to show a debug window.
+```python
+def get_min_tag_offset(self, show_detection_window = False):
+```
+Then, if that argument is true, we'll show the detection right before we return.
+
+```python
+import cv2
+
+...
+rvec, tvec = self._get_apriltag_orientation(corners)
+
+### New code ###
+if show_detection_window:
+    # Highlight and label the AprilTag we saw
+    aruco.drawDetectedMarkers(image, [corners], np.array([tag_id]))
+    # Draw its orientation markers
+    cv2.drawFrameAxes(
+        image=image,
+        cameraMatrix=self.camera_matrix,
+        distCoeffs=None,
+        rvec=rvec,
+        tvec=tvec,
+        length=self.marker_length * 1.5,
+        thickness=2
+    )
+    # Show the image in a window
+    cv2.imshow('AprilTag Detection', image)
+    cv2.waitKey(100)
+### End new code ###
+
+return rvec, tvec
+```
+
+<details>
+<summary>Final Full File</summary>
+
+```python
+import cv2
+from cv2 import aruco as aruco
+import numpy as np
+
+from controller import Camera
+
+class AprilTagDetector:
+    def __init__(self, camera: Camera):
+        self.camera = camera
+        
+        apriltag_dict = aruco.getPredefinedDictionary(aruco.DICT_APRILTAG_16h5)
+        parameters = aruco.DetectorParameters()
+        self.detector = aruco.ArucoDetector(apriltag_dict, parameters)
+        
+        fx = (self.camera.width / 2) / (self.camera.fov / 2)
+        fy = fx
+
+        cx = self.camera.width / 2
+        cy = self.camera.height / 2
+
+        self.camera_matrix = np.array([[fx, 0, cx],
+                                  [0, fy, cy],
+                                  [0, 0, 1]], dtype=np.float32)
+
+        self.marker_length = 0.1
+
+    def _get_camera_image(self):
+        img = np.frombuffer(self.camera.getImage(), dtype=np.uint8).reshape((self.camera.height, self.camera.width, 4))
+        img_converted = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+        return img_converted
+
+    def _get_min_id_apriltag(self, image):
+        corners, ids, rejected_image_points = self.detector.detectMarkers(image)
+        
+        if ids is None or len(ids) == 0: # We didn't detect any markers
+            return None, None
+
+        min_index = int(np.argmin(ids)) # Gets the index of the smallest ID
+        
+        return int(ids[min_index]), corners[min_index]
+
+    def _get_apriltag_orientation(self, corners):
+
+        obj_points = np.array([[-self.marker_length / 2.0, self.marker_length / 2.0, 0],
+                               [self.marker_length / 2.0, self.marker_length / 2.0, 0],
+                               [self.marker_length / 2.0, -self.marker_length / 2.0, 0],
+                               [-self.marker_length / 2.0, -self.marker_length / 2.0, 0]],
+                              dtype=np.float32)
+
+        _, rvec, tvec = cv2.solvePnP(
+            objectPoints=obj_points,
+            imagePoints=corners,
+            cameraMatrix=self.camera_matrix,
+            distCoeffs=None # We have no distortion in the camera
+        )
+
+        return rvec, tvec
+    
+    def get_min_tag_offset(self, show_detection_window=False):
+        image = self._get_camera_image()
+        
+        tag_id, corners = self._get_min_id_apriltag(image)
+        if tag_id is None or corners is None: # No detections
+            return None, None
+    
+        rvec, tvec = self._get_apriltag_orientation(corners)
+    
+        if show_detection_window:
+            # Highlight and label the AprilTag we saw
+            aruco.drawDetectedMarkers(image, [corners], np.array([tag_id]))
+            # Draw its orientation markers
+            cv2.drawFrameAxes(
+                image=image,
+                cameraMatrix=self.camera_matrix,
+                distCoeffs=None,
+                rvec=rvec,
+                tvec=tvec,
+                length=self.marker_length * 1.5,
+                thickness=2
+            )
+            # Show the image in a window
+            cv2.imshow('AprilTag Detection', image)
+            cv2.waitKey(100)
+        
+        return rvec, tvec
+```
+</details>
+
+Now we can update our drone code to detect the AprilTag.
+
+We'll import the detector we just made.
+```python
+from apriltag_detector import AprilTagDetector
+```
+Then we'll initialize it once we've initialized our camera.
+```python
+...
+camera = robot.getDevice("camera")
+detector = AprilTagDetector(camera)
+...
+```
+Finally, in our main loop, we'll read out the variables from it.
+```python
+rvec, tvec = detector.get_min_tag_offset(True)
+```
+For now, we'll pass `True` to tell it show the debug window.
+As you'll see in a second, though, this causes a major performance hit in the simulator,
+so you shouldn't keep this on all the time.
+
+If you go back to Webots and run the simulator, a window should appear (it might be hidden behind the simulator).
+It will look something like this once the drone stabilizes.
+![An AprilTag with orientation markers](Pictures/apriltag_detected_in_drone_view.jpg)
+If you rotate the AprilTag using the keyboard controls (Q and E), you'll see the orientation change.
+![A rotated AprilTag with orientation markers](Pictures/apriltag_detected_rotated.jpg)
+You can continue moving the AprilTag around, including away from the camera, and the detection should keep up.
+
+Once you're done checking this out, set the parameter in `detector.get_min_tag_offset` to `False` 
+to make the simulator run more smoothly. You can see the current speed in the top bar,
+and it typically drops to about quarter speed when displaying the window.
+You can always turn it back on if you need to see what's going on.
+
+Now that we can track the AprilTag with the camera,
+the last part of the puzzle is to make the drone autonomously move to keep itself a certain distance from the AprilTag.
+That's what we'll do next.
+
