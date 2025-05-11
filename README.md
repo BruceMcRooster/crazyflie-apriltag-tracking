@@ -794,3 +794,7 @@ That's what we'll do next.
 > [!WARNING]
 > ### 🚧 UNDER CONSTRUCTION 🚧
 > This section is currently incomplete. It will be updated once the tracking part of this project is completed.
+
+## Future Directions
+- [ ] Search for AprilTags is none are found
+- [ ] Move to AprilTags in order (find and move to ID 0, the ID 1, and so on)
